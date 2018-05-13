@@ -1,11 +1,17 @@
+//#include <stdio.h>
 #include <windows.h>
+
+#if defined(_MSC_VER)
+#pragma comment(lib,"kernel32.lib")
+#pragma comment(linker,"/entry:DllMain")
+#endif
 
 #define MAX_DLL 100
 #define SetEnvW (*bakSetEnv)
 
 const char	DLLPath[] = "\\*.dll";
 
-typedef BOOL WINAPI (*PSetEnv) (wchar_t *, wchar_t *);
+typedef BOOL (WINAPI *PSetEnv) (wchar_t *, wchar_t *);
 typedef void (*PCALL) (wchar_t *, wchar_t *);
 
 struct DLLcall
@@ -35,6 +41,8 @@ void HookAPI(void *OldFunc, void *NewFunc)
 	//PIMAGE_IMPORT_BY_NAME     pImportByName;
 	HMODULE				hMod;
 
+	int				no = 1;
+
 	//------------hook api----------------
 	hMod = GetModuleHandle(NULL);
 	pDosHeader = (PIMAGE_DOS_HEADER) hMod;
@@ -46,7 +54,6 @@ void HookAPI(void *OldFunc, void *NewFunc)
 		//char * dllname = (char *)((BYTE *)hMod + pImportDescriptor->Name);
 		pThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->OriginalFirstThunk);
 
-		int	no = 1;
 		while(pThunkData->u1.Function)
 		{
 			//char * funname = (char *)((BYTE *)hMod + (DWORD)pThunkData->u1.AddressOfData + 2);
@@ -55,9 +62,11 @@ void HookAPI(void *OldFunc, void *NewFunc)
 			//修改内存的部分
 			if((*lpAddr) == (unsigned int) OldFunc)
 			{
-				//修改内存页的属性
 				DWORD				dwOLD;
 				MEMORY_BASIC_INFORMATION	mbi;
+				//printf("Change: %08X(%08X -> %08X)\n", lpAddr, *lpAddr, NewFunc);
+
+				//修改内存页的属性
 				VirtualQuery(lpAddr, &mbi, sizeof(mbi));
 				VirtualProtect(lpAddr, sizeof(DWORD), PAGE_READWRITE, &dwOLD);
 				WriteProcessMemory(GetCurrentProcess(), lpAddr, &NewFunc, sizeof(DWORD), NULL);
@@ -80,40 +89,45 @@ void HookAPI(void *OldFunc, void *NewFunc)
 BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 {
 	BOOL	ret = SetEnvW(varName, varValue);
-	for(int i = 0; i < LCount; i++) (*List[i].pCall) (varName, varValue);
+	int	i;
+	//printf("Call Event:\n");
+	for(i = 0; i < LCount; i++) (*List[i].pCall) (varName, varValue);
 
 	return ret;
 }
 
 void LoadDLL()
 {
-	char			Path[MAX_PATH];
+	char			Path[MAX_PATH], *cp;
 	HANDLE			hFile = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATAA	mFileData;
 
 	GetModuleFileNameA(NULL, Path, sizeof(Path));
 
-	char	*cp = strrchr(Path, '\\');
+	cp = strrchr(Path, '\\');
 	*cp = '\0';
 	strcat(Path, DLLPath);
 
-	//printf("Find: '%s'\n", Path);
+	//printf("Path: '%s'\n", Path);
 	LCount = 0;
 	hFile = FindFirstFileA(Path, &mFileData);
 	if(hFile == INVALID_HANDLE_VALUE) return;
 	do
 	{
-		//printf("Load: '%s'\n", mFileData.cFileName);
 		HMODULE hModule = LoadLibraryA(mFileData.cFileName);
 		FARPROC pCall = GetProcAddress(hModule, "call");
 		if(pCall != NULL)
 		{
+			//printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
 			List[LCount].hModule = hModule;
 			List[LCount].pCall = (PCALL) pCall;
 			LCount++;
 		}
 		else if(hModule != NULL)
+		{
+			//printf("Fail: '%s'\n", mFileData.cFileName);
 			FreeLibrary(hModule);
+		}
 	} while(FindNextFileA(hFile, &mFileData));
 }
 
@@ -135,6 +149,7 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpvReserved)
 
 	case DLL_PROCESS_DETACH:
 		FreeDLL();
+		HookAPI(CallList, bakSetEnv);
 		break;
 	}
 
