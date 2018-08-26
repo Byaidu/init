@@ -18,6 +18,7 @@ int main(int argc, char *argv[])
 	int			n;
 	char			strDll[MAX_PATH];
 	char			cmdLine[8192] = "";
+	const char		*argument = PathGetArgsA(GetCommandLineA());
 
 	STARTUPINFO		si = { sizeof(si), 0 };
 	PROCESS_INFORMATION	pi = { 0 };
@@ -26,15 +27,15 @@ int main(int argc, char *argv[])
 	strrchr(strDll, '\\')[1] = '\0';
 	strcat(strDll, "init.dll");
 
-	puts(strDll);
-
+	// puts(strDll);
 	if(!PathFileExistsA(strDll)) * (void **) 0 = 0;
 
 	strcpy(cmdLine, getenv("ComSpec"));
 	strcat(cmdLine, " ");
-	strcat(cmdLine, PathGetArgsA(GetCommandLineA()));
+	strcat(cmdLine, argument);
 
-	puts(cmdLine);
+	// puts(cmdLine);
+	if(argument[0] == '\0') puts("This is a CMD with IMAGEv3.7b. type `SET IMAGE=HELP' for help.");
 
 	CreateProcessWithDllA(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi, strDll, NULL);
 
