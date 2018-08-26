@@ -9,6 +9,8 @@
 #define MAX_DLL 100
 #define SetEnvW (*bakSetEnv)
 
+HMODULE		hDllMod = NULL;
+
 const char	DLLPath[] = "\\*.dll";
 
 typedef BOOL (WINAPI *PSetEnv) (wchar_t *, wchar_t *);
@@ -48,47 +50,49 @@ void *HookAPI(const char *DllName, const char *FuncName, void *NewFunc)
 	pOptHeader = (PIMAGE_OPTIONAL_HEADER) & (pNTHeaders->OptionalHeader);
 	pImportDescriptor = (PIMAGE_IMPORT_DESCRIPTOR) ((BYTE *) hMod + pOptHeader->DataDirectory[1].VirtualAddress);
 
-	while
-	(
-		pImportDescriptor->FirstThunk != NULL
-	&&	pImportDescriptor->FirstThunk != pImportDescriptor->OriginalFirstThunk
-	)
+	while(pImportDescriptor->FirstThunk != NULL)
 	{
-		char	*dllname = (char *) ((BYTE *) hMod + pImportDescriptor->Name);
-		pOrigThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->OriginalFirstThunk);
-		pThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->FirstThunk);
-
-		// printf("dll: `%s'\n", dllname);
-		while(pThunkData->u1.Function)
+		if(pImportDescriptor->FirstThunk != pImportDescriptor->OriginalFirstThunk)
 		{
-			char	*funcname = (char *) ((BYTE *) hMod + (DWORD) pOrigThunkData->u1.AddressOfData + 2);
-			PDWORD	lpAddr = &pThunkData->u1.Function;
+			char	*dllname = (char *) ((BYTE *) hMod + pImportDescriptor->Name);
+			pOrigThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->OriginalFirstThunk);
+			pThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->FirstThunk);
 
-			// printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
-			//修改内存的部分
-			if(stricmp(DllName, dllname) == 0 && strcmp(FuncName, funcname) == 0)
+			printf("dll: `%s'\n", dllname);
+			while(pThunkData->u1.Function)
 			{
-				DWORD				dwOLD;
-				MEMORY_BASIC_INFORMATION	mbi;
+				char	*funcname = (char *)
+					((BYTE *) hMod + (DWORD) pOrigThunkData->u1.AddressOfData + 2);
+				PDWORD	lpAddr = &pThunkData->u1.Function;
 
-				// printf("    change: %08X (%08X - %08X)\n", lpAddr, *lpAddr, NewFunc);
-				//修改内存页的属性
-				//VirtualQuery(lpAddr, &mbi, sizeof(mbi));
-				VirtualProtect(lpAddr, sizeof(DWORD), PAGE_READWRITE, &dwOLD);
+				printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
 
-				WriteProcessMemory(GetCurrentProcess(), &OldFunc, lpAddr, sizeof(DWORD), NULL);
-				WriteProcessMemory(GetCurrentProcess(), lpAddr, &NewFunc, sizeof(DWORD), NULL);
+				//修改内存的部分
+				if(stricmp(DllName, dllname) == 0 && strcmp(FuncName, funcname) == 0)
+				{
+					DWORD				dwOLD;
+					MEMORY_BASIC_INFORMATION	mbi;
 
-				//恢复内存页的属性
-				VirtualProtect(lpAddr, sizeof(DWORD), dwOLD, 0);
+					printf("    change: %08X (%08X - %08X)\n", lpAddr, *lpAddr, NewFunc);
+
+					//修改内存页的属性
+					//VirtualQuery(lpAddr, &mbi, sizeof(mbi));
+					VirtualProtect(lpAddr, sizeof(DWORD), PAGE_READWRITE, &dwOLD);
+
+					WriteProcessMemory(GetCurrentProcess(), &OldFunc, lpAddr, sizeof(DWORD), NULL);
+					WriteProcessMemory(GetCurrentProcess(), lpAddr, &NewFunc, sizeof(DWORD), NULL);
+
+					//恢复内存页的属性
+					VirtualProtect(lpAddr, sizeof(DWORD), dwOLD, 0);
+				}
+
+				//---------
+				pOrigThunkData++;
+				pThunkData++;
 			}
 
-			//---------
-			pOrigThunkData++;
-			pThunkData++;
+			pImportDescriptor++;
 		}
-
-		pImportDescriptor++;
 	}
 
 	return OldFunc;
@@ -113,7 +117,7 @@ void LoadDLL()
 	HANDLE			hFile = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATAA	mFileData;
 
-	GetModuleFileNameA(NULL, Path, sizeof(Path));
+	GetModuleFileNameA(hDllMod, Path, sizeof(Path));
 
 	cp = strrchr(Path, '\\');
 	*cp = '\0';
@@ -127,6 +131,7 @@ void LoadDLL()
 	{
 		HMODULE hModule = LoadLibraryA(mFileData.cFileName);
 		FARPROC pCall = GetProcAddress(hModule, "call");
+
 		if(pCall != NULL)
 		{
 			// printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
@@ -153,6 +158,7 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpvReserved)
 	switch(dwReason)
 	{
 	case DLL_PROCESS_ATTACH:
+		hDllMod = hModule;
 		DisableThreadLibraryCalls(hModule);
 		LoadDLL();
 		bakSetEnv = HookAPI("kernel32.dll", "SetEnvironmentVariableW", CallList);
