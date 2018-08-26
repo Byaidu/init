@@ -10,10 +10,14 @@
 #include <windows.h>
 
 BOOL WINAPI	PathFileExistsA(const char *);
+LPTSTR WINAPI	GetCommandLineA(void);
+PTSTR WINAPI	PathGetArgsA(PTSTR pszPath);
 
 int main(int argc, char *argv[])
 {
+	int			n;
 	char			strDll[MAX_PATH];
+	char			cmdLine[8192] = "";
 
 	STARTUPINFO		si = { sizeof(si), 0 };
 	PROCESS_INFORMATION	pi = { 0 };
@@ -26,25 +30,15 @@ int main(int argc, char *argv[])
 
 	if(!PathFileExistsA(strDll)) * (void **) 0 = 0;
 
-	CreateProcessWithDllA
-	(
-		NULL,
-		"C:\\WINDOWS\\system32\\cmd.exe",
-		NULL,
-		NULL,
-		FALSE,
-		0,
-		NULL,
-		NULL,
-		&si,
-		&pi,
-		strDll,
-		NULL
-	);
+	strcpy(cmdLine, getenv("ComSpec"));
+	strcat(cmdLine, " ");
+	strcat(cmdLine, PathGetArgsA(GetCommandLineA()));
+
+	puts(cmdLine);
+
+	CreateProcessWithDllA(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi, strDll, NULL);
 
 	WaitForSingleObject(pi.hProcess, INFINITE);
-
-	puts(strDll);
 
 	return 0;
 }

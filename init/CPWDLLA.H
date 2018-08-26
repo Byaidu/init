@@ -3,12 +3,18 @@
 #include <Windows.h>
 
 // 函数声明
-typedef BOOL (WINAPI * Proc_CreateProcess)
+typedef BOOL (WINAPI *Proc_CreateProcess)
 	(
-		LPCSTR lpApplicationName, LPSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES
-			lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCSTR
-				lpCurrentDirectory, LPSTARTUPINFO lpStartupInfo, LPPROCESS_INFORMATION
-					lpProcessInformation
+		LPCSTR lpApplicationName,
+		LPSTR lpCommandLine,
+		LPSECURITY_ATTRIBUTES lpProcessAttributes,
+		LPSECURITY_ATTRIBUTES lpThreadAttributes,
+		BOOL bInheritHandles,
+		DWORD dwCreationFlags,
+		LPVOID lpEnvironment,
+		LPCSTR lpCurrentDirectory,
+		LPSTARTUPINFO lpStartupInfo,
+		LPPROCESS_INFORMATION lpProcessInformation
 	);
 
 typedef HMODULE (WINAPI *Func_LoadLibrary) (LPCSTR lpLibFileName);

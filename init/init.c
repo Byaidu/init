@@ -58,23 +58,21 @@ void *HookAPI(const char *DllName, const char *FuncName, void *NewFunc)
 			pOrigThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->OriginalFirstThunk);
 			pThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->FirstThunk);
 
-			printf("dll: `%s'\n", dllname);
+			// printf("dll: `%s'\n", dllname);
 			while(pThunkData->u1.Function)
 			{
 				char	*funcname = (char *)
 					((BYTE *) hMod + (DWORD) pOrigThunkData->u1.AddressOfData + 2);
 				PDWORD	lpAddr = &pThunkData->u1.Function;
 
-				printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
-
+				// printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
 				//修改内存的部分
 				if(stricmp(DllName, dllname) == 0 && strcmp(FuncName, funcname) == 0)
 				{
 					DWORD				dwOLD;
 					MEMORY_BASIC_INFORMATION	mbi;
 
-					printf("    change: %08X (%08X - %08X)\n", lpAddr, *lpAddr, NewFunc);
-
+					// printf("    change: %08X (%08X - %08X)\n", lpAddr, *lpAddr, NewFunc);
 					//修改内存页的属性
 					//VirtualQuery(lpAddr, &mbi, sizeof(mbi));
 					VirtualProtect(lpAddr, sizeof(DWORD), PAGE_READWRITE, &dwOLD);
