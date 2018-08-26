@@ -32,7 +32,7 @@ int Init(void)
 	return 0;
 }
 
-void *HookAPI(const char *DllName, const char *FuncName, void *NewFunc)
+void *HookAPI(const char *FuncName, void *NewFunc)
 {
 	HMODULE				hMod;
 	PIMAGE_DOS_HEADER		pDosHeader;
@@ -67,7 +67,7 @@ void *HookAPI(const char *DllName, const char *FuncName, void *NewFunc)
 
 				// printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
 				//修改内存的部分
-				if(stricmp(DllName, dllname) == 0 && strcmp(FuncName, funcname) == 0)
+				if(strcmp(FuncName, funcname) == 0)
 				{
 					DWORD				dwOLD;
 					MEMORY_BASIC_INFORMATION	mbi;
@@ -159,12 +159,12 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpvReserved)
 		hDllMod = hModule;
 		DisableThreadLibraryCalls(hModule);
 		LoadDLL();
-		bakSetEnv = HookAPI("kernel32.dll", "SetEnvironmentVariableW", CallList);
+		bakSetEnv = HookAPI("SetEnvironmentVariableW", CallList);
 		break;
 
 	case DLL_PROCESS_DETACH:
 		FreeDLL();
-		HookAPI("kernel32.dll", "SetEnvironmentVariableW", bakSetEnv);
+		HookAPI("SetEnvironmentVariableW", bakSetEnv);
 		break;
 	}
 
