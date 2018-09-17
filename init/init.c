@@ -1,4 +1,4 @@
-#include <stdio.h>
+// #include <stdio.h>
 #include <string.h>
 #include <windows.h>
 
@@ -27,11 +27,12 @@ int	LCount;
 
 PSetEnv bakSetEnv = NULL;
 
-__declspec(dllexport)
-int Init(void)
-{
-	return 0;
-}
+// 无需导出函数加载
+// __declspec(dllexport)
+// int Init(void)
+// {
+	// return 0;
+// }
 
 void *HookAPI(const char *FuncName, void *NewFunc)
 {
@@ -123,7 +124,7 @@ void LoadDLL()
 	strcpy(FindPath, ThisPath);
 	strcat(FindPath, DLLPath);
 
-	printf("Path: '%s'\n", FindPath);
+	// printf("Path: '%s'\n", FindPath);
 	LCount = 0;
 	hFile = FindFirstFileA(FindPath, &mFileData);
 	if(hFile == INVALID_HANDLE_VALUE) return;
@@ -141,19 +142,19 @@ void LoadDLL()
 
 		if(pCall != NULL)
 		{
-			printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
+			// printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
 			List[LCount].hModule = hModule;
 			List[LCount].pCall = (PCALL) pCall;
 			LCount++;
 		}
 		else if(hModule != NULL)
 		{
-			printf("None: '%s'\n", mFileData.cFileName);
+			// printf("None: '%s'\n", mFileData.cFileName);
 			FreeLibrary(hModule);
 		}
 		else
 		{
-			printf("Fail: '%s'\n", mFileData.cFileName);
+			// printf("Fail: '%s'\n", mFileData.cFileName);
 		}
 	} while(FindNextFileA(hFile, &mFileData));
 }
