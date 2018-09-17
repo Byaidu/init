@@ -1,4 +1,5 @@
-// #include <stdio.h>
+#include <stdio.h>
+#include <string.h>
 #include <windows.h>
 
 #if defined(_MSC_VER)
@@ -111,36 +112,48 @@ BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 
 void LoadDLL()
 {
-	char			Path[MAX_PATH], *cp;
+	char			ThisPath[MAX_PATH], FindPath[MAX_PATH], DLLPathName[MAX_PATH], *cp;
 	HANDLE			hFile = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATAA	mFileData;
 
-	GetModuleFileNameA(hDllMod, Path, sizeof(Path));
+	GetModuleFileNameA(hDllMod, ThisPath, sizeof(ThisPath));
 
-	cp = strrchr(Path, '\\');
-	*cp = '\0';
-	strcat(Path, DLLPath);
+	strrchr(ThisPath, '\\')[1] = '\0';
 
-	// printf("Path: '%s'\n", Path);
+	strcpy(FindPath, ThisPath);
+	strcat(FindPath, DLLPath);
+
+	printf("Path: '%s'\n", FindPath);
 	LCount = 0;
-	hFile = FindFirstFileA(Path, &mFileData);
+	hFile = FindFirstFileA(FindPath, &mFileData);
 	if(hFile == INVALID_HANDLE_VALUE) return;
 	do
 	{
-		HMODULE hModule = LoadLibraryA(mFileData.cFileName);
-		FARPROC pCall = GetProcAddress(hModule, "call");
+		HMODULE hModule;
+		FARPROC pCall;
+
+		//注意坑人的地方
+		strcpy(DLLPathName, ThisPath);
+		strcat(DLLPathName, mFileData.cFileName);
+
+		hModule = LoadLibraryA(DLLPathName);
+		pCall = GetProcAddress(hModule, "call");
 
 		if(pCall != NULL)
 		{
-			// printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
+			printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
 			List[LCount].hModule = hModule;
 			List[LCount].pCall = (PCALL) pCall;
 			LCount++;
 		}
 		else if(hModule != NULL)
 		{
-			// printf("Fail: '%s'\n", mFileData.cFileName);
+			printf("None: '%s'\n", mFileData.cFileName);
 			FreeLibrary(hModule);
+		}
+		else
+		{
+			printf("Fail: '%s'\n", mFileData.cFileName);
 		}
 	} while(FindNextFileA(hFile, &mFileData));
 }
