@@ -1,20 +1,19 @@
-// #include <stdio.h>
+#include <stdio.h>
 #include <string.h>
 #include <windows.h>
+#include "APIHOOK.H"
 
 #if defined(_MSC_VER)
 #pragma comment(linker, "/nodefaultlib:libcmt.lib")
 #pragma comment(lib, "msvcrt.lib")
 #pragma comment(lib, "kernel32.lib")
 #endif
-#define MAX_DLL 100
-#define SetEnvW (*bakSetEnv)
+#define MAX_DLL 128
 
 HMODULE		hDllMod = NULL;
 
 const char	DLLPath[] = "\\*.dll";
 
-typedef BOOL (WINAPI *PSetEnv) (wchar_t *, wchar_t *);
 typedef void (*PCALL) (wchar_t *, wchar_t *);
 
 struct DLLcall
@@ -25,87 +24,18 @@ struct DLLcall
 
 int	LCount;
 
-PSetEnv bakSetEnv = NULL;
-
-// ÎÞÐèµ¼³öº¯Êý¼ÓÔØ
-// __declspec(dllexport)
-// int Init(void)
-// {
-	// return 0;
-// }
-
-void *HookAPI(const char *FuncName, void *NewFunc)
-{
-	HMODULE				hMod;
-	PIMAGE_DOS_HEADER		pDosHeader;
-	PIMAGE_NT_HEADERS		pNTHeaders;
-	PIMAGE_OPTIONAL_HEADER		pOptHeader;
-	PIMAGE_IMPORT_DESCRIPTOR	pImportDescriptor;
-	PIMAGE_THUNK_DATA		pOrigThunkData, pThunkData;
-	void				*OldFunc = NULL;
-
-	//PIMAGE_IMPORT_BY_NAME     pImportByName;
-	//------------hook api----------------
-	hMod = GetModuleHandle(NULL);
-	pDosHeader = (PIMAGE_DOS_HEADER) hMod;
-	pNTHeaders = (PIMAGE_NT_HEADERS) ((BYTE *) hMod + pDosHeader->e_lfanew);
-	pOptHeader = (PIMAGE_OPTIONAL_HEADER) & (pNTHeaders->OptionalHeader);
-	pImportDescriptor = (PIMAGE_IMPORT_DESCRIPTOR) ((BYTE *) hMod + pOptHeader->DataDirectory[1].VirtualAddress);
-
-	while(pImportDescriptor->FirstThunk != NULL)
-	{
-		if(pImportDescriptor->FirstThunk != pImportDescriptor->OriginalFirstThunk)
-		{
-			char	*dllname = (char *) ((BYTE *) hMod + pImportDescriptor->Name);
-			pOrigThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->OriginalFirstThunk);
-			pThunkData = (PIMAGE_THUNK_DATA) ((BYTE *) hMod + pImportDescriptor->FirstThunk);
-
-			// printf("dll: `%s'\n", dllname);
-			while(pThunkData->u1.Function)
-			{
-				char	*funcname = (char *)
-					((BYTE *) hMod + (DWORD) pOrigThunkData->u1.AddressOfData + 2);
-				PDWORD	lpAddr = &pThunkData->u1.Function;
-
-				// printf("  fn: `%s' (%08X)\n", funcname, *lpAddr);
-				//ÐÞ¸ÄÄÚ´æµÄ²¿·Ö
-				if(strcmp(FuncName, funcname) == 0)
-				{
-					DWORD				dwOLD;
-					MEMORY_BASIC_INFORMATION	mbi;
-
-					// printf("    change: %08X (%08X - %08X)\n", lpAddr, *lpAddr, NewFunc);
-					//ÐÞ¸ÄÄÚ´æÒ³µÄÊôÐÔ
-					//VirtualQuery(lpAddr, &mbi, sizeof(mbi));
-					VirtualProtect(lpAddr, sizeof(DWORD), PAGE_READWRITE, &dwOLD);
-
-					WriteProcessMemory(GetCurrentProcess(), &OldFunc, lpAddr, sizeof(DWORD), NULL);
-					WriteProcessMemory(GetCurrentProcess(), lpAddr, &NewFunc, sizeof(DWORD), NULL);
-
-					//»Ö¸´ÄÚ´æÒ³µÄÊôÐÔ
-					VirtualProtect(lpAddr, sizeof(DWORD), dwOLD, 0);
-				}
-
-				//---------
-				pOrigThunkData++;
-				pThunkData++;
-			}
-
-			pImportDescriptor++;
-		}
-	}
-
-	return OldFunc;
-
-	//-------------------HOOK END-----------------
-}
+APIBAK	bak;
 
 BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 {
-	BOOL	ret = SetEnvW(varName, varValue);
+	BOOL	ret;
 	int	i;
 
-	// printf("Call Event:\n");
+	APIFREE(&bak);
+	ret = SetEnvironmentVariableW(varName, varValue);
+	APIHOOK("KernelBASE.dll", "SetEnvironmentVariableW", (void *) &CallList, &bak);
+
+	printf("Call Event:\n");
 	for(i = 0; i < LCount; i++) (*List[i].pCall) (varName, varValue);
 
 	return ret;
@@ -113,7 +43,7 @@ BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 
 void LoadDLL()
 {
-	char			ThisPath[MAX_PATH], FindPath[MAX_PATH], DLLPathName[MAX_PATH], *cp;
+	char			ThisPath[MAX_PATH], FindPath[MAX_PATH], DLLPathName[MAX_PATH];
 	HANDLE			hFile = INVALID_HANDLE_VALUE;
 	WIN32_FIND_DATAA	mFileData;
 
@@ -124,7 +54,7 @@ void LoadDLL()
 	strcpy(FindPath, ThisPath);
 	strcat(FindPath, DLLPath);
 
-	// printf("Path: '%s'\n", FindPath);
+	printf("Path: '%s'\n", FindPath);
 	LCount = 0;
 	hFile = FindFirstFileA(FindPath, &mFileData);
 	if(hFile == INVALID_HANDLE_VALUE) return;
@@ -133,7 +63,7 @@ void LoadDLL()
 		HMODULE hModule;
 		FARPROC pCall;
 
-		//×¢Òâ¿ÓÈËµÄµØ·½
+		//æ³¨æ„å‘äººçš„åœ°æ–¹
 		strcpy(DLLPathName, ThisPath);
 		strcat(DLLPathName, mFileData.cFileName);
 
@@ -142,21 +72,22 @@ void LoadDLL()
 
 		if(pCall != NULL)
 		{
-			// printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
+			printf("Load: '%s' (%08X,%08X)\n", mFileData.cFileName, hModule, pCall);
 			List[LCount].hModule = hModule;
 			List[LCount].pCall = (PCALL) pCall;
 			LCount++;
 		}
 		else if(hModule != NULL)
 		{
-			// printf("None: '%s'\n", mFileData.cFileName);
+			printf("None: '%s'\n", mFileData.cFileName);
 			FreeLibrary(hModule);
 		}
 		else
 		{
-			// printf("Fail: '%s'\n", mFileData.cFileName);
+			printf("Fail: '%s'\n", mFileData.cFileName);
 		}
 	} while(FindNextFileA(hFile, &mFileData));
+	FindClose(hFile);
 }
 
 void FreeDLL()
@@ -173,12 +104,12 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpvReserved)
 		hDllMod = hModule;
 		DisableThreadLibraryCalls(hModule);
 		LoadDLL();
-		bakSetEnv = HookAPI("SetEnvironmentVariableW", CallList);
+		APIHOOK("KernelBASE.dll", "SetEnvironmentVariableW", (void *) &CallList, &bak);
 		break;
 
 	case DLL_PROCESS_DETACH:
 		FreeDLL();
-		HookAPI("SetEnvironmentVariableW", bakSetEnv);
+		APIFREE(&bak);
 		break;
 	}
 
