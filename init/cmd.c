@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 	// puts(strDll);
 	if(!PathFileExistsA(strDll)) * (void **) 0 = 0;
 
-	strcpy(cmdLine, "..\\cmd");
+	strcpy(cmdLine, getenv("ComSpec"));
 	strcat(cmdLine, " ");
 	strcat(cmdLine, argument);
 
