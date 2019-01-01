@@ -26,6 +26,7 @@ int	LCount;
 
 APIBAK	bak;
 
+__declspec(dllexport)
 int Init()
 {
 	return 0;
