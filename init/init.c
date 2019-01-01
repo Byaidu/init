@@ -26,6 +26,11 @@ int	LCount;
 
 APIBAK	bak;
 
+int Init()
+{
+	return 0;
+}
+
 BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 {
 	BOOL	ret;
@@ -36,7 +41,8 @@ BOOL WINAPI CallList(wchar_t *varName, wchar_t *varValue)
 	APIHOOK("KernelBASE.dll", "SetEnvironmentVariableW", (void *) &CallList, &bak);
 
 	// printf("Call Event:\n");
-	for(i = 0; i < LCount; i++) (*List[i].pCall) (varName, varValue);
+	for(i = 0; i < LCount; i++)
+		(*List[i].pCall) (varName, varValue);
 
 	return ret;
 }
@@ -57,7 +63,8 @@ void LoadDLL()
 	// printf("Path: '%s'\n", FindPath);
 	LCount = 0;
 	hFile = FindFirstFileA(FindPath, &mFileData);
-	if(hFile == INVALID_HANDLE_VALUE) return;
+	if(hFile == INVALID_HANDLE_VALUE)
+		return;
 	do
 	{
 		HMODULE hModule;
@@ -93,7 +100,8 @@ void LoadDLL()
 void FreeDLL()
 {
 	int	i;
-	for(i = 0; i < LCount; i++) FreeLibrary(List[LCount].hModule);
+	for(i = 0; i < LCount; i++)
+		FreeLibrary(List[LCount].hModule);
 }
 
 BOOL WINAPI DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpvReserved)
